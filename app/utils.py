@@ -1,24 +1,29 @@
-import requests
-from flask import jsonify
 from datetime import datetime
-from dotenv import load_dotenv
+import requests
 import os
+import pytz
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 API_URL = os.getenv("API_URL")
 
-# Preveri, če sta ključ in URL dejansko bila naložena
+# Check if API_KEY and API_URL are loaded properly from the .env file
 if not API_KEY or not API_URL:
-    raise EnvironmentError("API_KEY ali API_URL nista definirana v .env datoteki.")
+    raise EnvironmentError("API_KEY or API_URL is not defined in the .env file.")
 
 headers = {
-    'X-Auth-Token': API_KEY  # Glava, ki vsebuje tvoj API ključ
+    'X-Auth-Token': API_KEY  # Header containing the API key
 }
+
+# Set the timezone for Spain (CET/CEST)
+spain_tz = pytz.timezone("Europe/Madrid")
 
 def get_matches_from_api():
     try:
+        # Fetch matches data from the API
         response = requests.get(API_URL, headers=headers)
         
         if response.status_code != 200:
@@ -36,11 +41,26 @@ def get_matches_from_api():
             home_crest = match.get('homeTeam', {}).get('crest', '')  # URL of home team crest
             away_crest = match.get('awayTeam', {}).get('crest', '')  # URL of away team crest
             score = "Match not played yet"
+            status = "Scheduled"  # Default status for scheduled matches
+            
+            # Check if match score exists and format it
             if match.get('score', {}).get('fullTime', {}).get('home') is not None:
                 score = f"{match['score']['fullTime']['home']} - {match['score']['fullTime']['away']}"
+                status = "Finished"
+            
+            # Check if the match is currently live
+            if match.get('status') == 'LIVE':
+                status = "LIVE"
+                score = "LIVE"  # Can also show LIVE score here if required
+            
+            # Update date format to European style, convert from UTC to Spain time (CET/CEST)
             date = match.get('utcDate', 'Unknown date')
             if date != 'Unknown date':
-                date = datetime.fromisoformat(date.replace('Z', '')).strftime('%d %B %Y at %H:%M')
+                utc_time = datetime.fromisoformat(date.replace('Z', ''))  # Convert to datetime object
+                # Convert UTC time to Spain local time
+                local_time = utc_time.astimezone(spain_tz)
+                # Format the local time in European style
+                date = local_time.strftime('%d.%m.%Y ob %H:%M')
             
             match_data = {
                 "home_team": home_team,
@@ -48,18 +68,22 @@ def get_matches_from_api():
                 "home_crest": home_crest,
                 "away_crest": away_crest,
                 "score": score,
+                "status": status,  # Add match status
                 "date": date
             }
             
+            # Group matches by league
             if league_name not in leagues:
                 leagues[league_name] = []
             leagues[league_name].append(match_data)
         
+        # Format the result as a list of leagues with their matches
         result = [{"league": league, "matches": matches} for league, matches in leagues.items()]
         return result
     except Exception as e:
         print(f"Error fetching data: {e}")
         return {"error": "An error occurred"}
+
 
 def get_team_matches(team_id):
     try:
