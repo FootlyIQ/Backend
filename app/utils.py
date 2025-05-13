@@ -1,9 +1,17 @@
 import requests
 from flask import jsonify
 from datetime import datetime
+from dotenv import load_dotenv
+import os
 
-API_KEY = 'd2c7846705ad4022a183ea51e0a04fb0'  # Tvoj API ključ
-API_URL = 'https://api.football-data.org/v4/matches'  # API URL za tekme
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY")
+API_URL = os.getenv("API_URL")
+
+# Preveri, če sta ključ in URL dejansko bila naložena
+if not API_KEY or not API_URL:
+    raise EnvironmentError("API_KEY ali API_URL nista definirana v .env datoteki.")
 
 headers = {
     'X-Auth-Token': API_KEY  # Glava, ki vsebuje tvoj API ključ
