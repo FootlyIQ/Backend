@@ -2,6 +2,7 @@ from flask import Blueprint, Response
 from .utils import get_team_matches
 import json
 import requests
+from .config import db
 
 main = Blueprint('main', __name__)
 
