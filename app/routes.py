@@ -46,3 +46,13 @@ def fetch_team_squad(team_id):
         status=200,
         mimetype='application/json'
     )
+
+@main.route('/test-firestore', methods=['GET'])
+def test_firestore():
+    try:
+        users_ref = db.collection('users')
+        docs = users_ref.stream()
+        users = [doc.to_dict() for doc in docs]
+        return Response(json.dumps(users, ensure_ascii=False), status=200, mimetype='application/json')
+    except Exception as e:
+        return Response(json.dumps({'error': str(e)}, ensure_ascii=False), status=500, mimetype='application/json')
