@@ -1,4 +1,4 @@
-from flask import Blueprint, Response
+from flask import Blueprint, Response, jsonify
 from .utils import get_team_matches
 import json
 import requests
