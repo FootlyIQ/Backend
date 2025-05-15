@@ -3,3 +3,7 @@ venv/
 __pycache__/
 .venv/
 key.json
+venv/
+.venv
+key.json
+app/__pycache__
