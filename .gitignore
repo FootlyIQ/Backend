@@ -1,2 +1,4 @@
-.env
 venv/
+.venv
+key.json
+app/__pycache__
