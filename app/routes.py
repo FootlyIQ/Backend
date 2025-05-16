@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, jsonify
-from .utils import get_team_matches
+from .utils import get_team_matches, get_team_squad,get_match_statistics
 import json
 import requests
 from .config import db
@@ -30,8 +30,6 @@ def fetch_team_matches(team_id):
         mimetype='application/json'
     )
 
-from .utils import get_team_squad
-
 @main.route('/team-squad/<int:team_id>', methods=['GET'])
 def fetch_team_squad(team_id):
     squad = get_team_squad(team_id)
@@ -46,6 +44,22 @@ def fetch_team_squad(team_id):
         status=200,
         mimetype='application/json'
     )
+
+@main.route('/match-statistics/<int:match_id>', methods=['GET'])
+def fetch_match_statistics(match_id):
+    stats = get_match_statistics(match_id)
+    if "error" in stats:
+        return Response(
+            json.dumps({'message': stats["error"]}, ensure_ascii=False, indent=4),
+            status=500,
+            mimetype='application/json'
+        )
+    return Response(
+        json.dumps(stats, ensure_ascii=False, indent=4),
+        status=200,
+        mimetype='application/json'
+    )
+
 
 @main.route('/test-firestore', methods=['GET'])
 def test_firestore():
