@@ -161,6 +161,63 @@ def get_most_common_pass_clusters_last_third():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+    
+
+@app.route("/api/passes/filters", methods=['GET'])
+def filter_pass_clusters():
+    """
+    Returns clustered passes from the parquet file on S3,
+    optionally filtered by parameters like successful, pass_high, long_pass, and pass_length.
+    """
+    team_name = request.args.get("team_name")
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+
+    try:
+        # Load the full dataset
+        df = load_parquet_from_s3("footlyiq-data", "gold/pass_clustering/parquet/ALL_clustered_passes_1_colab.parquet")
+        team_id = inside_get_team_id(team_name)
+
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+
+        # Filter by team
+        df_passes = df[df["team_id"] == team_id]
+
+        # Optional filters
+        filter_fields = {
+            "successful": lambda x: x.lower() in ["true", "1"],
+            "pass_high": lambda x: x.lower() in ["true", "1"],
+            "long_pass": lambda x: x.lower() in ["true", "1"],
+            "pass_length": float  # This is numeric
+        }
+
+        for field, parser in filter_fields.items():
+            if field in request.args:
+                value = request.args.get(field)
+                try:
+                    parsed_value = parser(value)
+                    if field == "pass_length":
+                        df_passes = df_passes[df_passes[field] >= parsed_value]
+                    else:
+                        df_passes = df_passes[df_passes[field] == parsed_value]
+                except Exception as parse_err:
+                    return jsonify({"error": f"Invalid value for {field}: {value}"}), 400
+
+        # Top 6 clusters by frequency
+        top_6 = df_passes["label"].value_counts().head(6).index
+        top_6_clusters = df_passes[df_passes["label"].isin(top_6)]
+
+        # Optional: limit result size
+        df_limited = top_6_clusters.head(50)
+
+        return jsonify(df_limited.to_dict(orient="records"))
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# NE POZABI VKLOPIT VENV KO ZAČNEŠ ZAGANJAT !!!!!!!!!!!!!!!!!!!!!    
 
 if __name__ == '__main__':
     app.run()
