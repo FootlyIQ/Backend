@@ -131,6 +131,36 @@ def get_most_common_pass_clusters():
         return jsonify(df_limited.to_dict(orient="records"))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/api/passes/last-third/most-common", methods=['GET'])
+def get_most_common_pass_clusters_last_third():
+    #POMEBNO: funkcija vraca 0-based cluster labels (0-59), torej pri vizualizaciji moreš offsetat za 1 kot pri MOS-u (cluster+1) !!!!!!!!
+    """Returns clustered passes penetrating in the last 3 from the parquet file on S3."""
+    team_name = request.args.get("team_name")
+    print(team_name)
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+    
+    try:
+        df = load_parquet_from_s3("footlyiq-data", "gold/pass_clustering/parquet/FINAL-3rd_clustered_passes_1.parquet")
+        team_id = inside_get_team_id(team_name)
+
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+        
+        print(f"team_id: {team_id}")
+
+        df_passes = df[df["team_id"] == team_id]
+        top_6 = df_passes["label"].value_counts().head(6).index
+        top_6_clusters = df_passes[df_passes["label"].isin(top_6)]
+
+        df_limited = top_6_clusters.head(50)
+        
+        return jsonify(df_limited.to_dict(orient="records"))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 
 if __name__ == '__main__':
     app.run()
