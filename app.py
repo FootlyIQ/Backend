@@ -133,7 +133,7 @@ def get_most_common_pass_clusters():
         return jsonify({"error": str(e)}), 500
     
 
-@app.route("/api/passes/last-third/most-common", methods=['GET'])
+@app.route("/api/passes/last-third", methods=['GET'])
 def get_most_common_pass_clusters_last_third():
     #POMEBNO: funkcija vraca 0-based cluster labels (0-59), torej pri vizualizaciji moreš offsetat za 1 kot pri MOS-u (cluster+1) !!!!!!!!
     """Returns clustered passes penetrating in the last 3 from the parquet file on S3."""
