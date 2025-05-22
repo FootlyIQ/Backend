@@ -4,6 +4,7 @@ import json
 import requests
 from .config import db, s3, con
 import pandas as pd
+import numpy as np
 import io
 
 
@@ -310,3 +311,74 @@ def filter_pass_clusters():
         return jsonify({"error": str(e)}), 500
 
 
+
+@main.route("/api/xG", methods=['GET'])
+def get_xG():
+    """Returns dataframe for xG for certain team"""
+    team_name = request.args.get("team_name")
+    print(team_name)
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+    
+    try:
+        df = load_parquet_from_s3("footlyiq-data", "gold/xG/parquet/xG_done_filtered.parquet")
+        team_id = inside_get_team_id(team_name)
+
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+        
+        print(f"team_id: {team_id}")
+
+        df_xG = df[df["team_id"] == team_id]
+        print(df_xG.shape)
+
+        df_limited = df_xG.head(50)
+        
+        return jsonify(df_limited.to_dict(orient="records"))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@main.route("/api/xG/heatmap", methods=['GET'])
+def get_xG_heatmap():
+    team_name = request.args.get("team_name")
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+
+    try:
+        df = load_parquet_from_s3("footlyiq-data", "gold/xG/parquet/xG_done_filtered.parquet")
+        team_id = inside_get_team_id(team_name)
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+
+        df = df[df["team_id"] == team_id]
+
+        bins = 11  # or 17 depending on smoothness you want
+        x_bins = np.linspace(0, 105, bins)
+        y_bins = np.linspace(0, 68, bins)
+
+        heatmap_data = []
+        shot_grid = np.zeros((bins - 1, bins - 1))
+        xg_grid = np.zeros((bins - 1, bins - 1))
+
+        for _, shot in df.iterrows():
+            x_idx = np.digitize(shot['X'], x_bins) - 1
+            y_idx = np.digitize(shot['Y'], y_bins) - 1
+            if 0 <= x_idx < bins - 1 and 0 <= y_idx < bins - 1:
+                shot_grid[x_idx, y_idx] += 1
+                xg_grid[x_idx, y_idx] += shot['xG']
+
+        avg_xg_grid = np.divide(xg_grid, shot_grid, where=shot_grid != 0)
+        avg_xg_grid = np.nan_to_num(avg_xg_grid)
+
+        for i in range(bins - 1):
+            for j in range(bins - 1):
+                heatmap_data.append({
+                    "x": (x_bins[i] + x_bins[i+1]) / 2,
+                    "y": (y_bins[j] + y_bins[j+1]) / 2,
+                    "xG": float(avg_xg_grid[i][j])
+                })
+
+        return jsonify(heatmap_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
