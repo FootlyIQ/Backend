@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, jsonify, request
-from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api
+from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches
 import json
 import requests
 from .config import db
@@ -66,6 +66,28 @@ def fetch_match_statistics(match_id):
         status=200,
         mimetype='application/json'
     )
+
+@main.route('/player/<int:player_id>', methods=['GET'])
+def fetch_player_details(player_id):
+    try:
+        data = get_player_details(player_id)
+        if "error" in data:
+            return jsonify(data), 500
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+
+@main.route('/player/<int:player_id>/matches', methods=['GET'])
+def fetch_player_matches(player_id):
+    try:
+        limit = request.args.get('limit', default=50, type=int)
+        data = get_player_matches(player_id, limit)
+        if "error" in data:
+            return jsonify(data), 500
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
 
 
 @main.route('/test-firestore', methods=['GET'])

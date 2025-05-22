@@ -51,3 +51,24 @@ def get_match_statistics(match_id):
     except Exception as e:
         print(f"Napaka pri klicu mikrostoritve za statistiko tekme: {e}")
         return {"error": "Neuspešen klic mikrostoritve za statistiko tekme"}
+
+def get_player_details(player_id):
+    try:
+        response = requests.get(f"{EXPRESS_API_URL}/player/{player_id}")
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Napaka pri pridobivanju podatkov o igralcu: {e}")
+        return {"error": "Neuspešen klic mikrostoritve za podatke o igralcu"}
+
+def get_player_matches(player_id, limit=50):
+    try:
+        url = f"{EXPRESS_API_URL}/player/{player_id}/matches"
+        if limit:
+            url += f"?limit={limit}"
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Napaka pri pridobivanju tekem igralca: {e}")
+        return {"error": "Neuspešen klic mikrostoritve za tekme igralca"} 
