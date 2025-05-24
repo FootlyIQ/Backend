@@ -424,3 +424,94 @@ def get_xT_moving():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+@main.route("/api/xT/shots", methods=['GET'])
+def get_xT_shots():
+    team_name = request.args.get("team_name")
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+    print(team_name)
+
+    try:
+        df = load_parquet_from_s3("footlyiq-data", "gold/xT/parquet/shots_small.parquet")
+        team_id = inside_get_team_id(team_name)
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+        
+        print(f"team_id: {team_id}")
+
+        df = df[df["team_id"] == team_id]
+
+        counts, x_edges, y_edges = np.histogram2d(
+            df["start_x"],
+            df["start_y"],
+            bins=[16,12],
+            range=[[0, 105], [0, 68]]
+        )
+
+        # Convert to plain Python list for JSON
+        counts_list = counts.T.tolist() # Transpose so it's rows by columns (y by x)
+
+        return jsonify({
+            "counts": counts_list,
+            "x_bins": 16,
+            "y_bins": 12,
+            "pitch_width": 105,
+            "pitch_height": 68
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@main.route("/api/xT/shot-probability", methods=['GET'])
+def get_shot_probability():
+    team_name = request.args.get("team_name")
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+
+    try:
+        df_move = load_parquet_from_s3("footlyiq-data", "gold/xT/parquet/moving_small.parquet")
+        df_shots = load_parquet_from_s3("footlyiq-data", "gold/xT/parquet/shots_small.parquet")
+        team_id = inside_get_team_id(team_name)
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+
+        df_move = df_move[df_move["team_id"] == team_id]
+        df_shots = df_shots[df_shots["team_id"] == team_id]
+
+        # Define bins and range
+        bins_x, bins_y = 16, 12
+        range_x, range_y = [0, 105], [0, 68]
+
+        # Binned counts for movement
+        move_counts, _, _ = np.histogram2d(
+            df_move["start_x"], df_move["start_y"],
+            bins=[bins_x, bins_y],
+            range=[range_x, range_y]
+        )
+
+        # Binned counts for shots
+        shot_counts, _, _ = np.histogram2d(
+            df_shots["start_x"], df_shots["start_y"],
+            bins=[bins_x, bins_y],
+            range=[range_x, range_y]
+        )
+        
+
+        # Shot probability
+        with np.errstate(divide='ignore', invalid='ignore'):
+            prob = np.divide(shot_counts, move_counts + shot_counts)
+            prob[np.isnan(prob)] = 0.0  # Avoid NaNs
+
+        return jsonify({
+            "probability": prob.T.tolist(),  # Transposed to match (y,x) layout
+            "x_bins": bins_x,
+            "y_bins": bins_y,
+            "pitch_width": 105,
+            "pitch_height": 68
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
