@@ -311,6 +311,7 @@ def filter_pass_clusters():
         return jsonify({"error": str(e)}), 500
 
 
+# XG
 
 @main.route("/api/xG", methods=['GET'])
 def get_xG():
@@ -380,5 +381,42 @@ def get_xG_heatmap():
                 })
 
         return jsonify(heatmap_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# XT
+
+@main.route("/api/xT/moving", methods=['GET'])
+def get_xT_moving():
+    team_name = request.args.get("team_name")
+    if not team_name:
+        return jsonify({"error": "team_name is required"}), 400
+
+    try:
+        df = load_parquet_from_s3("footlyiq-data", "gold/xT/parquet/passes_crosses_Done_small.parquet")
+        team_id = inside_get_team_id(team_name)
+        if team_id is None:
+            return jsonify({"error": "Team not found"}), 404
+
+        df = df[df["team_id"] == team_id]
+
+        counts, x_edges, y_edges = np.histogram2d(
+            df["start_x"],
+            df["start_y"],
+            bins=[16,12],
+            range=[[0, 105], [0, 68]]
+        )
+
+        # Convert to plain Python list for JSON
+        counts_list = counts.T.tolist() # Transpose so it's rows by columns (y by x)
+
+        return jsonify({
+            "counts": counts_list,
+            "x_bins": 16,
+            "y_bins": 12,
+            "pitch_width": 105,
+            "pitch_height": 68
+        })
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
