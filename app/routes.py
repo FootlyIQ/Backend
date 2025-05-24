@@ -197,6 +197,7 @@ def inside_get_team_id(name):
         print(f"Error in inside_get_team_id: {e}")
         return None
     
+# PASS
 
 @main.route("/api/passes/most-common", methods=['GET'])
 def get_most_common_pass_clusters():
@@ -391,12 +392,15 @@ def get_xT_moving():
     team_name = request.args.get("team_name")
     if not team_name:
         return jsonify({"error": "team_name is required"}), 400
+    print(team_name)
 
     try:
-        df = load_parquet_from_s3("footlyiq-data", "gold/xT/parquet/passes_crosses_Done_small.parquet")
+        df = load_parquet_from_s3("footlyiq-data", "gold/xT/parquet/moving_small.parquet")
         team_id = inside_get_team_id(team_name)
         if team_id is None:
             return jsonify({"error": "Team not found"}), 404
+        
+        print(f"team_id: {team_id}")
 
         df = df[df["team_id"] == team_id]
 
