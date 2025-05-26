@@ -106,6 +106,11 @@ def get_fpl_team(team_id):
             player_id = pick["element"]
             player = player_map[player_id]
 
+            # Določi osnovne točke
+            base_points = live_points_map.get(player_id, 0)
+            # Če je kapetan, podvoji točke
+            points = base_points * 2 if pick["is_captain"] else base_points
+
             player_data = {
                 "id": player_id,
                 "first_name": player["first_name"],
@@ -115,12 +120,12 @@ def get_fpl_team(team_id):
                 "multiplier": pick["multiplier"],
                 "is_captain": pick["is_captain"],
                 "is_vice_captain": pick["is_vice_captain"],
-                "points": live_points_map.get(player_id, 0)
+                "points": points
             }
 
             if pick["position"] <= 11:
                 starting_players.append(player_data)
-                total_points += player_data["points"] * pick["multiplier"]
+                total_points += points
             else:
                 bench_players.append(player_data)
 
@@ -133,6 +138,163 @@ def get_fpl_team(team_id):
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
+    
+@main.route("/api/fpl/player-details/<int:player_id>", methods=["GET"])
+def get_player_details(player_id):
+    gameweek = 36  # fiksna vrednost
+
+    # Preberi ali je kapetan iz query param
+    is_captain = request.args.get("is_captain", "false").lower() == "true"
+
+    # Fetch player history and static info
+    player_url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
+    elements_url = "https://fantasy.premierleague.com/api/bootstrap-static/"
+    try:
+        response = requests.get(player_url)
+        response.raise_for_status()
+        data = response.json()
+        bootstrap = requests.get(elements_url).json()
+        elements = bootstrap["elements"]
+        teams = bootstrap["teams"]
+        player_info = next((el for el in elements if el["id"] == player_id), None)
+        if not player_info:
+            return jsonify({"error": "Player info not found"}), 404
+        position = player_info["element_type"]  # 1=GK, 2=DEF, 3=MID, 4=FWD
+    except Exception as e:
+        return jsonify({"error": "Failed to fetch player data", "details": str(e)}), 500
+
+    # Najdi podatke za gameweek 36
+    gameweek_data = next((gw for gw in data["history"] if gw["round"] == gameweek), None)
+    if not gameweek_data:
+        return jsonify({"error": f"No data for gameweek {gameweek}"}), 404
+    
+    print("gameweek_data:", gameweek_data)
+    
+    # Determine home and away team IDs
+    player_team_id = player_info["team"]
+    opponent_team_id = gameweek_data["opponent_team"]
+    
+    if gameweek_data["was_home"]:
+        home_team_id = player_team_id
+        away_team_id = opponent_team_id
+        home_score = gameweek_data["team_h_score"]
+        away_score = gameweek_data["team_a_score"]
+    else:
+        home_team_id = opponent_team_id
+        away_team_id = player_team_id
+        home_score = gameweek_data["team_h_score"]
+        away_score = gameweek_data["team_a_score"]
+    
+    # Get team short names
+    home_team = next((t for t in teams if t["id"] == home_team_id), None)
+    away_team = next((t for t in teams if t["id"] == away_team_id), None)
+    home_short = home_team["short_name"] if home_team else "HOME"
+    away_short = away_team["short_name"] if away_team else "AWAY"
+    score = f"{home_score}–{away_score}"
+    
+    # Fixture string with short names and score
+    fixture = f"{home_short} {score} {away_short}"
+
+    # Points logic by position
+    if position == 1:  # Goalkeeper
+        points_map = {
+            "minutes": 2 if gameweek_data["minutes"] > 59 else 1 if gameweek_data["minutes"] > 0 else 0,
+            "goals_scored": gameweek_data["goals_scored"] * 6,
+            "assists": gameweek_data["assists"] * 3,
+            "clean_sheets": gameweek_data["clean_sheets"] * 4,
+            "goals_conceded": -1 * (gameweek_data["goals_conceded"] // 2),
+            "own_goals": -2 * gameweek_data["own_goals"],
+            "penalties_saved": gameweek_data["penalties_saved"] * 5,
+            "penalties_missed": -2 * gameweek_data["penalties_missed"],
+            "yellow_cards": -1 * gameweek_data["yellow_cards"],
+            "red_cards": -3 * gameweek_data["red_cards"],
+            "saves": (gameweek_data["saves"] // 3),  # 1 point for every 3 saves
+            "bonus": gameweek_data["bonus"],
+        }
+    elif position == 2:  # Defender
+        points_map = {
+            "minutes": 2 if gameweek_data["minutes"] > 59 else 1 if gameweek_data["minutes"] > 0 else 0,
+            "goals_scored": gameweek_data["goals_scored"] * 6,
+            "assists": gameweek_data["assists"] * 3,
+            "clean_sheets": gameweek_data["clean_sheets"] * 4,
+            "goals_conceded": -1 * (gameweek_data["goals_conceded"] // 2),
+            "own_goals": -2 * gameweek_data["own_goals"],
+            "penalties_saved": 0,
+            "penalties_missed": -2 * gameweek_data["penalties_missed"],
+            "yellow_cards": -1 * gameweek_data["yellow_cards"],
+            "red_cards": -3 * gameweek_data["red_cards"],
+            "saves": 0,
+            "bonus": gameweek_data["bonus"],
+        }
+    elif position == 3:  # Midfielder
+        points_map = {
+            "minutes": 2 if gameweek_data["minutes"] > 59 else 1 if gameweek_data["minutes"] > 0 else 0,
+            "goals_scored": gameweek_data["goals_scored"] * 5,
+            "assists": gameweek_data["assists"] * 3,
+            "clean_sheets": gameweek_data["clean_sheets"] * 1,
+            "goals_conceded": 0,
+            "own_goals": -2 * gameweek_data["own_goals"],
+            "penalties_saved": 0,
+            "penalties_missed": -2 * gameweek_data["penalties_missed"],
+            "yellow_cards": -1 * gameweek_data["yellow_cards"],
+            "red_cards": -3 * gameweek_data["red_cards"],
+            "saves": 0,
+            "bonus": gameweek_data["bonus"],
+        }
+    else:  # Forward
+        points_map = {
+            "minutes": 2 if gameweek_data["minutes"] > 59 else 1 if gameweek_data["minutes"] > 0 else 0,
+            "goals_scored": gameweek_data["goals_scored"] * 4,
+            "assists": gameweek_data["assists"] * 3,
+            "clean_sheets": 0,
+            "goals_conceded": 0,
+            "own_goals": -2 * gameweek_data["own_goals"],
+            "penalties_saved": 0,
+            "penalties_missed": -2 * gameweek_data["penalties_missed"],
+            "yellow_cards": -1 * gameweek_data["yellow_cards"],
+            "red_cards": -3 * gameweek_data["red_cards"],
+            "saves": 0,
+            "bonus": gameweek_data["bonus"],
+        }
+
+    label_map = {
+        "minutes": "Minutes Played",
+        "goals_scored": "Goals Scored",
+        "assists": "Assists",
+        "clean_sheets": "Clean Sheets",
+        "goals_conceded": "Goals Conceded",
+        "own_goals": "Own Goals",
+        "penalties_saved": "Penalties Saved",
+        "penalties_missed": "Penalties Missed",
+        "yellow_cards": "Yellow Cards",
+        "red_cards": "Red Cards",
+        "saves": "Saves",
+        "bonus": "Bonus",
+    }
+
+    stats = []
+    for key, points in points_map.items():
+        if points != 0:
+            stats.append({
+                "label": label_map[key],
+                "value": gameweek_data[key],
+                "points": points
+            })
+
+    # Only double the total points if captain
+    total_points = gameweek_data["total_points"] * 2 if is_captain else gameweek_data["total_points"]
+    stats.append({
+        "label": "Total Points",
+        "value": "",
+        "points": total_points
+    })
+
+    return jsonify({
+        "fixture": fixture,
+        "stats": stats
+    })
+
+
     
 
 # GALOV DEL ZA ANALYSIS HUB
