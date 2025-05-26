@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, jsonify, request
-from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches
+from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters
 import json
 import requests
 from .config import db
@@ -24,48 +24,36 @@ def fetch_matches():
 
 @main.route('/team-matches/<int:team_id>', methods=['GET'])
 def fetch_team_matches(team_id):
-    matches = get_team_matches(team_id)
+    season = request.args.get('season')
+    competition = request.args.get('competition')
+    matches = get_team_matches(team_id, season=season, competition=competition)
     if "error" in matches:
-        return Response(
-            json.dumps({'message': matches["error"]}, ensure_ascii=False, indent=4),
-            status=500,
-            mimetype='application/json'
-        )
-    return Response(
-        json.dumps(matches, ensure_ascii=False, indent=4),
-        status=200,
-        mimetype='application/json'
-    )
+        return jsonify({"message": matches["error"]}), 500
+    return jsonify(matches)
+
+@main.route('/team-filters/<int:team_id>', methods=['GET'])
+def fetch_team_filters(team_id):
+    try:
+        filters = get_team_filters(team_id)
+        if "error" in filters:
+            return jsonify({"message": filters["error"]}), 500
+        return jsonify(filters)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @main.route('/team-squad/<int:team_id>', methods=['GET'])
 def fetch_team_squad(team_id):
     squad = get_team_squad(team_id)
     if "error" in squad:
-        return Response(
-            json.dumps({'message': squad["error"]}, ensure_ascii=False, indent=4),
-            status=500,
-            mimetype='application/json'
-        )
-    return Response(
-        json.dumps(squad, ensure_ascii=False, indent=4),
-        status=200,
-        mimetype='application/json'
-    )
+        return jsonify({"message": squad["error"]}), 500
+    return jsonify(squad)
 
 @main.route('/match-statistics/<int:match_id>', methods=['GET'])
 def fetch_match_statistics(match_id):
     stats = get_match_statistics(match_id)
     if "error" in stats:
-        return Response(
-            json.dumps({'message': stats["error"]}, ensure_ascii=False, indent=4),
-            status=500,
-            mimetype='application/json'
-        )
-    return Response(
-        json.dumps(stats, ensure_ascii=False, indent=4),
-        status=200,
-        mimetype='application/json'
-    )
+        return jsonify({"message": stats["error"]}), 500
+    return jsonify(stats)
 
 @main.route('/player/<int:player_id>', methods=['GET'])
 def fetch_player_details(player_id):
@@ -76,19 +64,19 @@ def fetch_player_details(player_id):
         return jsonify(data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
 
 @main.route('/player/<int:player_id>/matches', methods=['GET'])
 def fetch_player_matches(player_id):
     try:
         limit = request.args.get('limit', default=50, type=int)
-        data = get_player_matches(player_id, limit)
+        season = request.args.get('season')
+        competition = request.args.get('competition')
+        data = get_player_matches(player_id, limit, season, competition)
         if "error" in data:
             return jsonify(data), 500
         return jsonify(data)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500 
-
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/test-firestore', methods=['GET'])
 def test_firestore():

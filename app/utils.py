@@ -25,14 +25,21 @@ def get_matches_from_api(date=None):
         return {"error": "An unexpected error occurred"} 
 
 
-def get_team_matches(team_id):
+def get_team_matches(team_id, season=None, competition=None):
     try:
-        response = requests.get(f"{EXPRESS_API_URL}/team/{team_id}/matches")
+        url = f"{EXPRESS_API_URL}/team/{team_id}/matches"
+        params = {}
+        if season:
+            params['season'] = season
+        if competition:
+            params['competition'] = competition
+        
+        response = requests.get(url, params=params)
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"Napaka pri klicu mikrostoritve za team matches: {e}")
-        return {"error": "Neuspešen klic mikrostoritve za team matches"}
+        print(f"Error calling microservice for team matches: {e}")
+        return {"error": "Failed to call microservice for team matches"}
 
 def get_team_squad(team_id):
     try:
@@ -40,17 +47,17 @@ def get_team_squad(team_id):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"Napaka pri klicu mikrostoritve za team squad: {e}")
-        return {"error": "Neuspešen klic mikrostoritve za team squad"}
-    
+        print(f"Error calling microservice for team squad: {e}")
+        return {"error": "Failed to call microservice for team squad"}
+
 def get_match_statistics(match_id):
     try:
         response = requests.get(f"http://localhost:3000/match/{match_id}/statistics")
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"Napaka pri klicu mikrostoritve za statistiko tekme: {e}")
-        return {"error": "Neuspešen klic mikrostoritve za statistiko tekme"}
+        print(f"Error calling microservice for match statistics: {e}")
+        return {"error": "Failed to call microservice for match statistics"}
 
 def get_player_details(player_id):
     try:
@@ -58,17 +65,30 @@ def get_player_details(player_id):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"Napaka pri pridobivanju podatkov o igralcu: {e}")
-        return {"error": "Neuspešen klic mikrostoritve za podatke o igralcu"}
+        print(f"Error calling microservice for player details: {e}")
+        return {"error": "Failed to call microservice for player details"}
 
-def get_player_matches(player_id, limit=50):
+def get_player_matches(player_id, limit=50, season=None, competition=None):
     try:
         url = f"{EXPRESS_API_URL}/player/{player_id}/matches"
-        if limit:
-            url += f"?limit={limit}"
-        response = requests.get(url)
+        params = {'limit': limit}
+        if season:
+            params['season'] = season
+        if competition:
+            params['competition'] = competition
+        
+        response = requests.get(url, params=params)
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"Napaka pri pridobivanju tekem igralca: {e}")
-        return {"error": "Neuspešen klic mikrostoritve za tekme igralca"} 
+        print(f"Error calling microservice for player matches: {e}")
+        return {"error": "Failed to call microservice for player matches"}
+
+def get_team_filters(team_id):
+    try:
+        response = requests.get(f"{EXPRESS_API_URL}/team/{team_id}/filters")
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Error fetching team filters from microservice: {e}")
+        return {"error": "Failed to fetch team filters"} 
