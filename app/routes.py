@@ -313,8 +313,267 @@ def get_player_details(player_id):
         "stats": stats
     })
 
+@main.route("/api/fpl/captaincy/<int:team_id>", methods=["GET"])
+def get_fpl_captaincy(team_id):
+    try:
+        # Fetch static data
+        bootstrap = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/").json()
+        elements = bootstrap["elements"]
+        teams = {team["id"]: team for team in bootstrap["teams"]}
+        events = bootstrap["events"]
 
-    
+        gw = request.args.get("gameweek", type=int)
+        if gw:
+            selected_gw = gw
+        else:
+            current_event = next((e for e in events if e["is_current"]), None)
+            selected_gw = (current_event["id"] + 1) if current_event else 38
+
+        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
+        picks_res = requests.get(picks_url)
+        if picks_res.status_code != 200:
+            current = next((e for e in events if e["is_current"]), None)
+            picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{current['id']}/picks/"
+            picks_res = requests.get(picks_url)
+            if picks_res.status_code != 200:
+                return jsonify({"error": "Team not found"}), 404
+        picks_data = picks_res.json()
+        user_player_ids = [pick["element"] for pick in picks_data["picks"]]
+        player_map = {el["id"]: el for el in elements}
+        user_players = [player_map[pid] for pid in user_player_ids if pid in player_map]
+
+        def get_player_history(player_id):
+            url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
+            res = requests.get(url)
+            if res.status_code == 200:
+                return res.json().get("history", [])
+            return []
+
+        def get_upcoming_fixtures():
+            fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
+            res = requests.get(fixtures_url)
+            if res.status_code == 200:
+                return res.json()
+            return []
+
+        fixtures = get_upcoming_fixtures()
+
+        def get_next_fixture(player, fixtures, selected_gw):
+            team_id = player["team"]
+            for fixture in fixtures:
+                if fixture["event"] == selected_gw:
+                    if fixture["team_h"] == team_id or fixture["team_a"] == team_id:
+                        is_home = fixture["team_h"] == team_id
+                        opponent_team = fixture["team_a"] if is_home else fixture["team_h"]
+                        fdr = fixture["team_h_difficulty"] if is_home else fixture["team_a_difficulty"]
+                        return {
+                            "opponent_team": opponent_team,
+                            "is_home": is_home,
+                            "fdr": fdr
+                        }
+            return None
+
+        captain_candidates = []
+        for player in user_players:
+            history = get_player_history(player["id"])
+            recent_history = [gw for gw in history if selected_gw - 3 <= gw["round"] <= selected_gw]
+            if not recent_history:
+                continue
+            avg_points = sum(gw["total_points"] for gw in recent_history) / len(recent_history)
+            next_fixture = get_next_fixture(player, fixtures, selected_gw)
+            if not next_fixture:
+                continue
+            fdr = next_fixture["fdr"]
+            is_home = next_fixture["is_home"]
+
+            position = player["element_type"]
+            if position == 3:
+                bias = 1.20
+            elif position == 4:
+                bias = 1.15
+            else:
+                bias = 1.0
+
+            score = avg_points * (6 - fdr) * bias + (1 if is_home else 0)
+            captain_candidates.append({
+                "id": player["id"],
+                "first_name": player["first_name"],
+                "second_name": player["second_name"],
+                "team": teams[player["team"]]["name"],
+                "team_id": player["team"],
+                "form": player["form"],
+                "score": score,
+                "avg_points": avg_points,
+                "position": position,
+                "next_fixture": {
+                    "opponent": teams[next_fixture["opponent_team"]]["name"],
+                    "is_home": is_home,
+                    "fdr": fdr
+                }
+            })
+
+        suggested_captains = sorted(captain_candidates, key=lambda x: x["score"], reverse=True)[:6]
+
+        return jsonify({
+            "suggested_captains": suggested_captains
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@main.route("/api/fpl/transfers/<int:team_id>", methods=["GET"])
+def get_fpl_transfers(team_id):
+    try:
+        bootstrap = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/").json()
+        elements = bootstrap["elements"]
+        teams = {team["id"]: team for team in bootstrap["teams"]}
+        events = bootstrap["events"]
+
+        gw = request.args.get("gameweek", type=int)
+        if gw:
+            selected_gw = gw
+        else:
+            current_event = next((e for e in events if e["is_current"]), None)
+            selected_gw = (current_event["id"] + 1) if current_event else 38
+
+        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
+        picks_res = requests.get(picks_url)
+        if picks_res.status_code != 200:
+            current = next((e for e in events if e["is_current"]), None)
+            picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{current['id']}/picks/"
+            picks_res = requests.get(picks_url)
+            if picks_res.status_code != 200:
+                return jsonify({"error": "Team not found"}), 404
+        picks_data = picks_res.json()
+        user_player_ids = [pick["element"] for pick in picks_data["picks"]]
+        player_map = {el["id"]: el for el in elements}
+        user_players = [player_map[pid] for pid in user_player_ids if pid in player_map]
+
+        def get_player_history(player_id):
+            url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
+            res = requests.get(url)
+            if res.status_code == 200:
+                return res.json().get("history", [])
+            return []
+
+        def get_upcoming_fixtures():
+            fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
+            res = requests.get(fixtures_url)
+            if res.status_code == 200:
+                return res.json()
+            return []
+
+        fixtures = get_upcoming_fixtures()
+
+        def get_next_fixture(player, fixtures, selected_gw):
+            team_id = player["team"]
+            for fixture in fixtures:
+                if fixture["event"] == selected_gw:
+                    if fixture["team_h"] == team_id or fixture["team_a"] == team_id:
+                        is_home = fixture["team_h"] == team_id
+                        opponent_team = fixture["team_a"] if is_home else fixture["team_h"]
+                        fdr = fixture["team_h_difficulty"] if is_home else fixture["team_a_difficulty"]
+                        return {
+                            "opponent_team": opponent_team,
+                            "is_home": is_home,
+                            "fdr": fdr
+                        }
+            return None
+
+        # Determine free transfers
+        entry_history_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
+        entry_history_res = requests.get(entry_history_url)
+        if entry_history_res.status_code == 200:
+            history_data = entry_history_res.json()
+            current_gw = selected_gw - 1
+            if current_gw > 0:
+                current_gw_data = next((gw for gw in history_data["current"] if gw["event"] == current_gw), None)
+                if current_gw_data:
+                    free_transfers = current_gw_data.get("transfers", 1)
+                else:
+                    free_transfers = 1
+            else:
+                free_transfers = 1
+        else:
+            free_transfers = 1
+
+        budget = picks_data.get("entry_history", {}).get("bank", 0) / 10  # in millions
+
+        # Sort user players by lowest form (worst performers)
+        user_players_sorted = sorted(user_players, key=lambda x: float(x.get("form", 0)))
+        transfer_out_candidates = user_players_sorted[:max(3, free_transfers)]
+
+        transfer_suggestions = []
+        for out_player in transfer_out_candidates:
+            out_position = out_player["element_type"]
+            out_cost = out_player["now_cost"] / 10
+            max_price = out_cost + budget
+            # Candidates for transfer in (same position, not already in team, within budget)
+            candidates = [
+                p for p in elements
+                if p["id"] not in user_player_ids
+                and p["element_type"] == out_position
+                and p["now_cost"] / 10 <= max_price
+            ]
+            scored_candidates = []
+            for candidate in candidates:
+                history = get_player_history(candidate["id"])
+                recent_history = [gw for gw in history if gw["round"] < selected_gw][-3:]
+                if not recent_history:
+                    continue
+                avg_points = sum(gw["total_points"] for gw in recent_history) / len(recent_history)
+                next_fixture = get_next_fixture(candidate, fixtures, selected_gw)
+                if not next_fixture:
+                    continue
+                fdr = next_fixture["fdr"]
+                is_home = next_fixture["is_home"]
+                score = avg_points * (6 - fdr) + (1 if is_home else 0)
+                scored_candidates.append({
+                    "id": candidate["id"],
+                    "first_name": candidate["first_name"],
+                    "second_name": candidate["second_name"],
+                    "team": teams[candidate["team"]]["name"],
+                    "team_id": candidate["team"],
+                    "form": candidate["form"],
+                    "now_cost": candidate["now_cost"] / 10,
+                    "score": score,
+                    "next_fixture": {
+                        "opponent": teams[next_fixture["opponent_team"]]["name"],
+                        "is_home": is_home,
+                        "fdr": fdr
+                    }
+                })
+            # Sort by score and take top 3 for this out_player
+            best_in = sorted(scored_candidates, key=lambda x: x["score"], reverse=True)[:3]
+            for in_player in best_in:
+                transfer_suggestions.append({
+                    "out": {
+                        "id": out_player["id"],
+                        "first_name": out_player["first_name"],
+                        "second_name": out_player["second_name"],
+                        "team": teams[out_player["team"]]["name"],
+                        "team_id": out_player["team"],
+                        "form": out_player["form"],
+                        "now_cost": out_cost,
+                        "next_fixture": {
+                            "opponent": None,
+                            "is_home": None,
+                            "fdr": None
+                        }
+                    },
+                    "in": in_player
+                })
+
+        # Sort all possible transfers by in-player score and take top 3 overall
+        top_transfers = sorted(transfer_suggestions, key=lambda x: x["in"]["score"], reverse=True)[:3]
+
+        return jsonify({
+            "free_transfers": free_transfers,
+            "budget": budget,
+            "top_transfers": top_transfers
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # GALOV DEL ZA ANALYSIS HUB
 def load_parquet_from_s3(bucket: str, key: str) -> pd.DataFrame:
