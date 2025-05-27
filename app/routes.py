@@ -6,6 +6,7 @@ from .config import db, s3, con
 import pandas as pd
 import numpy as np
 import io
+import datetime
 
 
 main = Blueprint('main', __name__)
@@ -515,3 +516,48 @@ def get_shot_probability():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+@main.route('/submit-vote', methods=['POST'])
+def submit_vote():
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        vote = data.get('vote')  # should be '1', 'X', or '2'
+
+        if vote not in ['1', 'X', '2'] or not user_id:
+            return Response(json.dumps({'error': 'Invalid vote or user_id'}), status=400, mimetype='application/json')
+
+        vote_doc = {
+            'user_id': user_id,
+            'vote': vote,
+            'timestamp': datetime.datetime.utcnow()
+        }
+
+        # Save to Firestore - collection 'votes'
+        db.collection('votes').add(vote_doc)
+
+        return Response(json.dumps({'status': 'Vote recorded'}), status=200, mimetype='application/json')
+
+    except Exception as e:
+        return Response(json.dumps({'error': str(e)}), status=500, mimetype='application/json')
+    
+
+@main.route('/get-votes', methods=['GET'])
+def get_votes():
+    try:
+        votes_ref = db.collection('votes')
+        docs = votes_ref.stream()
+
+        vote_counts = {'1': 0, 'X': 0, '2': 0}
+
+        for doc in docs:
+            vote = doc.to_dict().get('vote')
+            if vote in vote_counts:
+                vote_counts[vote] += 1
+
+        return Response(json.dumps(vote_counts), status=200, mimetype='application/json')
+
+    except Exception as e:
+        return Response(json.dumps({'error': str(e)}), status=500, mimetype='application/json')
+
