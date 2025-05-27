@@ -78,7 +78,9 @@ def test_firestore():
 @main.route('/api/fpl/team/<int:team_id>', methods=['GET'])
 def get_fpl_team(team_id):
     try:
-        gw = 36  # ali dinamično iz frontend ali nastavitev
+        gw = request.args.get("gameweek", type=int)
+        if not gw:
+            return jsonify({"error": "Missing gameweek parameter"}), 400
 
         # API-ji
         picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{gw}/picks/"
@@ -138,10 +140,27 @@ def get_fpl_team(team_id):
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
+
+@main.route("/api/fpl/current-gameweek", methods=["GET"])
+def get_current_gameweek():
+    try:
+        res = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/")
+        res.raise_for_status()
+        events = res.json()["events"]
+        current = next((e for e in events if e["is_current"]), None)
+        if not current:
+            # fallback: next event or last event
+            current = next((e for e in events if e["is_next"]), events[-1])
+        return jsonify({"current_gameweek": current["id"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     
 @main.route("/api/fpl/player-details/<int:player_id>", methods=["GET"])
 def get_player_details(player_id):
-    gameweek = 36  # fiksna vrednost
+    
+    gameweek = request.args.get("gameweek", type=int)
+    if not gameweek:
+        return jsonify({"error": "Missing gameweek parameter"}), 400
 
     # Preberi ali je kapetan iz query param
     is_captain = request.args.get("is_captain", "false").lower() == "true"
