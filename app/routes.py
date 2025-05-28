@@ -478,29 +478,31 @@ def get_fpl_transfers(team_id):
                             "fdr": fdr
                         }
             return None
-
-        # Determine free transfers
-        entry_history_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
-        entry_history_res = requests.get(entry_history_url)
-        if entry_history_res.status_code == 200:
-            history_data = entry_history_res.json()
-            current_gw = selected_gw - 1
-            if current_gw > 0:
-                current_gw_data = next((gw for gw in history_data["current"] if gw["event"] == current_gw), None)
-                if current_gw_data:
-                    free_transfers = current_gw_data.get("transfers", 1)
-                else:
-                    free_transfers = 1
-            else:
-                free_transfers = 1
+        
+        # Determine the budget using the picks endpoint for the selected gameweek
+        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
+        picks_res = requests.get(picks_url)
+        if picks_res.status_code == 200:
+            picks_data = picks_res.json()
+            budget = picks_data.get("entry_history", {}).get("bank", 0) / 10
         else:
-            free_transfers = 1
+            entry_history_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
+            entry_history_res = requests.get(entry_history_url)
+            if entry_history_res.status_code == 200:
+                history_data = entry_history_res.json()
+                finished_gws = [gw for gw in history_data["current"] if gw.get("points") is not None]
+                if finished_gws:
+                    latest_gw = max(finished_gws, key=lambda gw: gw["event"])
+                    budget = latest_gw.get("bank", 0) / 10
+                else:
+                    budget = 0
+            else:
+                budget = 0
 
-        budget = picks_data.get("entry_history", {}).get("bank", 0) / 10  # in millions
 
         # Sort user players by lowest form (worst performers)
         user_players_sorted = sorted(user_players, key=lambda x: float(x.get("form", 0)))
-        transfer_out_candidates = user_players_sorted[:max(3, free_transfers)]
+        transfer_out_candidates = user_players_sorted[:3]
 
         transfer_suggestions = []
         for out_player in transfer_out_candidates:
@@ -567,12 +569,17 @@ def get_fpl_transfers(team_id):
         top_transfers = sorted(transfer_suggestions, key=lambda x: x["in"]["score"], reverse=True)[:3]
 
         return jsonify({
-            "free_transfers": free_transfers,
             "budget": budget,
             "top_transfers": top_transfers
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@main.route("/api/fpl/entry-history/<int:team_id>")
+def get_entry_history(team_id):
+    url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
+    res = requests.get(url)
+    return jsonify(res.json()), res.status_code
 
 
 # GALOV DEL ZA ANALYSIS HUB
