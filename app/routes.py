@@ -14,25 +14,27 @@ main = Blueprint('main', __name__)
 @main.route('/matches', methods=['GET'])
 def fetch_matches():
     try:
-        response = requests.get("http://localhost:3000/api/matches")  # Klic na mikrostoritev
-        return Response(response.text, status=response.status_code, mimetype='application/json')
+        # Get date from query parameters, but don't provide a default
+        # Let the microservice handle the default case
+        date = request.args.get('date')
+        data = get_matches_from_api(date)
+        
+        if "error" in data:
+            return jsonify(data), 500
+            
+        return jsonify(data)
     except Exception as e:
-        return Response(json.dumps({'message': str(e)}, ensure_ascii=False), status=500, mimetype='application/json')
+        return jsonify({'error': str(e)}), 500 
 
 @main.route('/team-matches/<int:team_id>', methods=['GET'])
 def fetch_team_matches(team_id):
-    matches = get_team_matches(team_id)
+    season = request.args.get('season')
+    competition = request.args.get('competition')
+    matches = get_team_matches(team_id, season=season, competition=competition)
     if "error" in matches:
-        return Response(
-            json.dumps({'message': matches["error"]}, ensure_ascii=False, indent=4),
-            status=500,
-            mimetype='application/json'
-        )
-    return Response(
-        json.dumps(matches, ensure_ascii=False, indent=4),
-        status=200,
-        mimetype='application/json'
-    )
+        return jsonify({"message": matches["error"]}), 500
+    return jsonify(matches)
+
 @main.route('/team-filters/<int:team_id>', methods=['GET'])
 def fetch_team_filters(team_id):
     try:
@@ -47,31 +49,15 @@ def fetch_team_filters(team_id):
 def fetch_team_squad(team_id):
     squad = get_team_squad(team_id)
     if "error" in squad:
-        return Response(
-            json.dumps({'message': squad["error"]}, ensure_ascii=False, indent=4),
-            status=500,
-            mimetype='application/json'
-        )
-    return Response(
-        json.dumps(squad, ensure_ascii=False, indent=4),
-        status=200,
-        mimetype='application/json'
-    )
+        return jsonify({"message": squad["error"]}), 500
+    return jsonify(squad)
 
 @main.route('/match-statistics/<int:match_id>', methods=['GET'])
 def fetch_match_statistics(match_id):
     stats = get_match_statistics(match_id)
     if "error" in stats:
-        return Response(
-            json.dumps({'message': stats["error"]}, ensure_ascii=False, indent=4),
-            status=500,
-            mimetype='application/json'
-        )
-    return Response(
-        json.dumps(stats, ensure_ascii=False, indent=4),
-        status=200,
-        mimetype='application/json'
-    )
+        return jsonify({"message": stats["error"]}), 500
+    return jsonify(stats)
 
 @main.route('/player/<int:player_id>', methods=['GET'])
 def fetch_player_details(player_id):
