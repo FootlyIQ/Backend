@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, jsonify, request
-from .utils import get_team_matches, get_team_squad,get_match_statistics
+from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details
 import json
 import requests
 from .config import db, s3, con
@@ -33,6 +33,15 @@ def fetch_team_matches(team_id):
         status=200,
         mimetype='application/json'
     )
+@main.route('/team-filters/<int:team_id>', methods=['GET'])
+def fetch_team_filters(team_id):
+    try:
+        filters = get_team_filters(team_id)
+        if "error" in filters:
+            return jsonify({"message": filters["error"]}), 500
+        return jsonify(filters)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @main.route('/team-squad/<int:team_id>', methods=['GET'])
 def fetch_team_squad(team_id):
@@ -64,6 +73,40 @@ def fetch_match_statistics(match_id):
         mimetype='application/json'
     )
 
+@main.route('/player/<int:player_id>', methods=['GET'])
+def fetch_player_details(player_id):
+    try:
+        data = get_player_details(player_id)
+        if "error" in data:
+            return jsonify(data), 500
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@main.route('/player/<int:player_id>/matches', methods=['GET'])
+def fetch_player_matches(player_id):
+    try:
+        limit = request.args.get('limit', default=50, type=int)
+        season = request.args.get('season')
+        competition = request.args.get('competition')
+        data = get_player_matches(player_id, limit, season, competition)
+        if "error" in data:
+            return jsonify(data), 500
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@main.route('/competition/<competition_code>', methods=['GET'])
+def fetch_competition_details(competition_code):
+    try:
+        season = request.args.get('season')  # Get season from query parameters
+        data = get_competition_details(competition_code, season)
+        if "error" in data:
+            return jsonify({"error": data["error"]}), 500
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error in competition route: {str(e)}")
+        return jsonify({'error': str(e)}), 500    
 
 @main.route('/test-firestore', methods=['GET'])
 def test_firestore():
