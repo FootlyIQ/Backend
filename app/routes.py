@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, jsonify, request
-from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters
+from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details
 import json
 import requests
 from .config import db
@@ -146,3 +146,15 @@ def get_fpl_team(team_id):
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"error": "Internal Server Error"}), 500
+
+@main.route('/competition/<competition_code>', methods=['GET'])
+def fetch_competition_details(competition_code):
+    try:
+        season = request.args.get('season')  # Get season from query parameters
+        data = get_competition_details(competition_code, season)
+        if "error" in data:
+            return jsonify({"error": data["error"]}), 500
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error in competition route: {str(e)}")
+        return jsonify({'error': str(e)}), 500

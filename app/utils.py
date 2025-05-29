@@ -91,4 +91,28 @@ def get_team_filters(team_id):
         return response.json()
     except Exception as e:
         print(f"Error fetching team filters from microservice: {e}")
-        return {"error": "Failed to fetch team filters"} 
+        return {"error": "Failed to fetch team filters"}
+
+def get_competition_details(competition_code, season=None):
+    try:
+        url = f"{EXPRESS_API_URL}/competition/{competition_code}"
+        params = {}
+        if season:
+            params['season'] = season
+            
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Check if the response contains an error
+        if "error" in data:
+            print(f"Error from microservice: {data['error']}")
+            return data
+            
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error calling microservice for competition details: {e}")
+        return {"error": f"Failed to fetch competition details: {str(e)}"}
+    except Exception as e:
+        print(f"Unexpected error in get_competition_details: {e}")
+        return {"error": f"An unexpected error occurred: {str(e)}"} 
