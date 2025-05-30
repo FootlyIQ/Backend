@@ -185,7 +185,7 @@ def get_current_gameweek():
         return jsonify({"error": str(e)}), 500
     
 @main.route("/api/fpl/player-details/<int:player_id>", methods=["GET"])
-def get_player_details(player_id):
+def get_fpl_player_details(player_id):
     
     gameweek = request.args.get("gameweek", type=int)
     if not gameweek:
