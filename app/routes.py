@@ -991,3 +991,13 @@ def get_shot_probability():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+# BETTING ODDS
+@main.route('/odds', methods=['GET'])
+def fetch_odds():
+    try:
+        response = requests.get("http://localhost:3001/odds")  # Call to Node.js microservice
+        return Response(response.text, status=response.status_code, mimetype='application/json')
+    except Exception as e:
+        return Response(json.dumps({'message': str(e)}, ensure_ascii=False), status=500, mimetype='application/json')
