@@ -1,11 +1,12 @@
 from flask import Blueprint, Response, jsonify, request
-from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details
+from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details, get_player_history, get_upcoming_fixtures,get_next_fixture, predict_points
 import json
 import requests
 from .config import db, s3, con
 import pandas as pd
 import numpy as np
 import io
+
 
 
 main = Blueprint('main', __name__)
@@ -151,7 +152,11 @@ def get_fpl_team(team_id):
                 "multiplier": pick["multiplier"],
                 "is_captain": pick["is_captain"],
                 "is_vice_captain": pick["is_vice_captain"],
-                "points": points
+                "points": points,
+                "status": player["status"],
+                "news": player["news"],
+                "news_added": player["news_added"],
+                "chance_of_playing_next_round": player["chance_of_playing_next_round"],
             }
 
             if pick["position"] <= 11:
@@ -342,6 +347,49 @@ def get_fpl_player_details(player_id):
         "stats": stats
     })
 
+@main.route("/api/fpl/fixture-difficulty", methods=["GET"])
+def get_fixture_difficulty():
+    try:
+        gw = request.args.get("gameweek", type=int)
+        count = request.args.get("count", type=int) or 5
+        if not gw:
+            res = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/")
+            events = res.json()["events"]
+            current = next((e for e in events if e["is_current"]), None)
+            gw = current["id"] if current else 38
+
+        fixtures = requests.get("https://fantasy.premierleague.com/api/fixtures/").json()
+        teams = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/").json()["teams"]
+
+        team_fdr = {team["id"]: 0 for team in teams}
+        team_names = {team["id"]: team["name"] for team in teams}
+
+        for team_id in team_fdr:
+            # Next 5 fixtures after selected gw
+            next_fixtures = [
+                f for f in fixtures
+                if f["event"] and f["event"] > gw and (f["team_h"] == team_id or f["team_a"] == team_id)
+            ]
+            next_fixtures = sorted(next_fixtures, key=lambda x: x["event"])[:count]
+            total_fdr = 0
+            for f in next_fixtures:
+                if f["team_h"] == team_id:
+                    total_fdr += f["team_h_difficulty"]
+                else:
+                    total_fdr += f["team_a_difficulty"]
+            team_fdr[team_id] = total_fdr
+
+        # Sort teams by total FDR (lower = easier)
+        easiest = sorted(team_fdr.items(), key=lambda x: x[1])[:5]
+        hardest = sorted(team_fdr.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        return jsonify({
+            "easiest": [{"team": team_names[tid], "team_id": tid, "total_fdr": fdr} for tid, fdr in easiest],
+            "hardest": [{"team": team_names[tid], "team_id": tid, "total_fdr": fdr} for tid, fdr in hardest]
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @main.route("/api/fpl/captaincy/<int:team_id>", methods=["GET"])
 def get_fpl_captaincy(team_id):
     try:
@@ -371,36 +419,7 @@ def get_fpl_captaincy(team_id):
         player_map = {el["id"]: el for el in elements}
         user_players = [player_map[pid] for pid in user_player_ids if pid in player_map]
 
-        def get_player_history(player_id):
-            url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
-            res = requests.get(url)
-            if res.status_code == 200:
-                return res.json().get("history", [])
-            return []
-
-        def get_upcoming_fixtures():
-            fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
-            res = requests.get(fixtures_url)
-            if res.status_code == 200:
-                return res.json()
-            return []
-
         fixtures = get_upcoming_fixtures()
-
-        def get_next_fixture(player, fixtures, selected_gw):
-            team_id = player["team"]
-            for fixture in fixtures:
-                if fixture["event"] == selected_gw:
-                    if fixture["team_h"] == team_id or fixture["team_a"] == team_id:
-                        is_home = fixture["team_h"] == team_id
-                        opponent_team = fixture["team_a"] if is_home else fixture["team_h"]
-                        fdr = fixture["team_h_difficulty"] if is_home else fixture["team_a_difficulty"]
-                        return {
-                            "opponent_team": opponent_team,
-                            "is_home": is_home,
-                            "fdr": fdr
-                        }
-            return None
 
         captain_candidates = []
         for player in user_players:
@@ -424,6 +443,7 @@ def get_fpl_captaincy(team_id):
                 bias = 1.0
 
             score = avg_points * (6 - fdr) * bias + (1 if is_home else 0)
+            predicted = predict_points(player,recent_history, next_fixture)
             captain_candidates.append({
                 "id": player["id"],
                 "first_name": player["first_name"],
@@ -433,6 +453,7 @@ def get_fpl_captaincy(team_id):
                 "form": player["form"],
                 "score": score,
                 "avg_points": avg_points,
+                "predicted_points": predicted,
                 "position": position,
                 "next_fixture": {
                     "opponent": teams[next_fixture["opponent_team"]]["name"],
@@ -477,36 +498,7 @@ def get_fpl_transfers(team_id):
         player_map = {el["id"]: el for el in elements}
         user_players = [player_map[pid] for pid in user_player_ids if pid in player_map]
 
-        def get_player_history(player_id):
-            url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
-            res = requests.get(url)
-            if res.status_code == 200:
-                return res.json().get("history", [])
-            return []
-
-        def get_upcoming_fixtures():
-            fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
-            res = requests.get(fixtures_url)
-            if res.status_code == 200:
-                return res.json()
-            return []
-
         fixtures = get_upcoming_fixtures()
-
-        def get_next_fixture(player, fixtures, selected_gw):
-            team_id = player["team"]
-            for fixture in fixtures:
-                if fixture["event"] == selected_gw:
-                    if fixture["team_h"] == team_id or fixture["team_a"] == team_id:
-                        is_home = fixture["team_h"] == team_id
-                        opponent_team = fixture["team_a"] if is_home else fixture["team_h"]
-                        fdr = fixture["team_h_difficulty"] if is_home else fixture["team_a_difficulty"]
-                        return {
-                            "opponent_team": opponent_team,
-                            "is_home": is_home,
-                            "fdr": fdr
-                        }
-            return None
         
         # Determine the budget using the picks endpoint for the selected gameweek
         picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
@@ -558,6 +550,7 @@ def get_fpl_transfers(team_id):
                 fdr = next_fixture["fdr"]
                 is_home = next_fixture["is_home"]
                 score = avg_points * (6 - fdr) + (1 if is_home else 0)
+                predicted = predict_points(candidate, recent_history, next_fixture)
                 scored_candidates.append({
                     "id": candidate["id"],
                     "first_name": candidate["first_name"],
@@ -567,6 +560,7 @@ def get_fpl_transfers(team_id):
                     "form": candidate["form"],
                     "now_cost": candidate["now_cost"] / 10,
                     "score": score,
+                    "predicted_points": predicted,
                     "next_fixture": {
                         "opponent": teams[next_fixture["opponent_team"]]["name"],
                         "is_home": is_home,
