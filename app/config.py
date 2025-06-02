@@ -35,3 +35,7 @@ con.execute(f"SET s3_region='{creds['region_name']}';")
 # Optional if you need explicit creds (already set in env vars)
 con.execute(f"SET s3_access_key_id='{creds['aws_access_key_id']}';")
 con.execute(f"SET s3_secret_access_key='{creds['aws_secret_access_key']}';")
+
+
+# BETTING
+MICROSERVICE_URL = os.getenv("BETTING_SERVICE_URL", "http://localhost:3001")

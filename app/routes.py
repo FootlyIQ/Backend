@@ -2,7 +2,7 @@ from flask import Blueprint, Response, jsonify, request
 from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details
 import json
 import requests
-from .config import db, s3, con
+from .config import db, s3, con, MICROSERVICE_URL
 import pandas as pd
 import numpy as np
 import io
@@ -997,7 +997,7 @@ def get_shot_probability():
 @main.route('/odds', methods=['GET'])
 def fetch_odds():
     try:
-        response = requests.get("http://localhost:3001/odds")  # Call to Node.js microservice
+        response = requests.get(f"{MICROSERVICE_URL}/odds")  # Call to Node.js microservice
         return Response(response.text, status=response.status_code, mimetype='application/json')
     except Exception as e:
         return Response(json.dumps({'message': str(e)}, ensure_ascii=False), status=500, mimetype='application/json')

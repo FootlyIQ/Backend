@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 key.json
 aws_s3_key.json
+.env
