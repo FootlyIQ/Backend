@@ -5,7 +5,7 @@ from .config import RESULTS_URL
 player_history_cache = {}
 CACHE_TTL = 60 * 180  # 3 hours
 
-EXPRESS_API_URL = "http://localhost:3000/api"   #RESULTS_URL to bi naj blo tu
+EXPRESS_API_URL = RESULTS_URL
 
 def get_matches_from_api(date=None):
     try:
@@ -57,7 +57,7 @@ def get_team_squad(team_id):
 
 def get_match_statistics(match_id):
     try:
-        response = requests.get(f"http://localhost:3000/match/{match_id}/statistics")
+        response = requests.get(f"{EXPRESS_API_URL}/match/{match_id}/statistics")
         response.raise_for_status()
         return response.json()
     except Exception as e:
