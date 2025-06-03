@@ -1,5 +1,5 @@
 from flask import Blueprint, Response, jsonify, request
-from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details, get_player_history, get_upcoming_fixtures,get_next_fixture, predict_points
+from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details, get_player_history, get_upcoming_fixtures,get_next_fixture, predict_points, search_players_from_microservice, search_teams_from_microservice
 import json
 import requests
 from .config import db, s3, con, MICROSERVICE_URL
@@ -995,3 +995,51 @@ def fetch_odds():
         return Response(response.text, status=response.status_code, mimetype='application/json')
     except Exception as e:
         return Response(json.dumps({'message': str(e)}, ensure_ascii=False), status=500, mimetype='application/json')
+    
+
+# Search endpoints
+@main.route('/api/search/teams', methods=['GET'])
+def search_teams():
+    """Search for teams by name using microservice"""
+    try:
+        search_term = request.args.get('q', '').strip()
+        print(f"🔍 Backend route: Teams search for '{search_term}'")
+        
+        if not search_term:
+            return jsonify({'teams': [], 'message': 'Please provide a search term'}), 400
+        
+        # Use utility function to call microservice
+        data = search_teams_from_microservice(search_term)
+        
+        if "error" in data:
+            return jsonify(data), 500
+            
+        return jsonify(data)
+        
+    except Exception as e:
+        print(f"❌ Error in backend search_teams route: {str(e)}")
+        return jsonify({'error': 'Failed to search teams'}), 500
+
+@main.route('/api/search/players', methods=['GET'])
+def search_players():
+    """Search for players by name using microservice"""
+    try:
+        search_term = request.args.get('q', '').strip()
+        team_id = request.args.get('team_id', '')
+        
+        print(f"🔍 Backend route: Players search for '{search_term}' (team_id: {team_id})")
+        
+        if not search_term:
+            return jsonify({'players': [], 'message': 'Please provide a search term'}), 400
+        
+        # Use utility function to call microservice  
+        data = search_players_from_microservice(search_term, team_id if team_id else None)
+        
+        if "error" in data:
+            return jsonify(data), 500
+            
+        return jsonify(data)
+        
+    except Exception as e:
+        print(f"❌ Error in backend search_players route: {str(e)}")
+        return jsonify({'error': 'Failed to search players'}), 500

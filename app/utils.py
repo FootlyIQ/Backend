@@ -170,3 +170,57 @@ def predict_points(player, recent_history, next_fixture):
     fixture_factor = max(0.5, 6 - fdr) / 5
     predicted = 0.5 * avg_recent + 0.3 * form + 0.2 * fixture_factor * avg_recent
     return round(predicted, 2)
+
+
+# SEARCH FUNCTIONS
+def search_teams_from_microservice(search_term):
+    """Search for teams using microservice endpoint"""
+    try:
+        print(f"🔍 Backend searching teams for: '{search_term}'")
+        
+        url = f"{EXPRESS_API_URL}/search/teams"
+        params = {'q': search_term}
+        
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        print(f"✅ Backend received {len(data.get('teams', []))} teams from microservice")
+        return data
+        
+    except requests.exceptions.Timeout:
+        print("❌ Microservice timeout in backend")
+        return {"error": "Search request timed out"}
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Backend microservice error: {str(e)}")
+        return {"error": f"Failed to connect to search service: {str(e)}"}
+    except Exception as e:
+        print(f"❌ Backend error in search_teams: {str(e)}")
+        return {"error": "Failed to search teams"}
+
+def search_players_from_microservice(search_term, team_id=None):
+    """Search for players using microservice endpoint"""
+    try:
+        print(f"🔍 Backend searching players for: '{search_term}' (team_id: {team_id})")
+        
+        url = f"{EXPRESS_API_URL}/search/players"
+        params = {'q': search_term}
+        if team_id:
+            params['team_id'] = team_id
+        
+        response = requests.get(url, params=params, timeout=60)
+        response.raise_for_status()
+        
+        data = response.json()
+        print(f"✅ Backend received {len(data.get('players', []))} players from microservice")
+        return data
+        
+    except requests.exceptions.Timeout:
+        print("❌ Microservice timeout in backend")
+        return {"error": "Search request timed out - try a more specific search term"}
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Backend microservice error: {str(e)}")
+        return {"error": f"Failed to connect to search service: {str(e)}"}
+    except Exception as e:
+        print(f"❌ Backend error in search_players: {str(e)}")
+        return {"error": "Failed to search players"} 
