@@ -1,10 +1,11 @@
 import requests
 import time
+from .config import RESULTS_URL
 
 player_history_cache = {}
 CACHE_TTL = 60 * 180  # 3 hours
 
-EXPRESS_API_URL = "http://localhost:3000/api"
+EXPRESS_API_URL = "http://localhost:3000/api"   #RESULTS_URL to bi naj blo tu
 
 def get_matches_from_api(date=None):
     try:

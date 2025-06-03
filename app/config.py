@@ -39,3 +39,6 @@ con.execute(f"SET s3_secret_access_key='{creds['aws_secret_access_key']}';")
 
 # BETTING
 MICROSERVICE_URL = os.getenv("BETTING_SERVICE_URL", "http://localhost:3001")
+
+#RESULTS
+RESULTS_URL = os.getenv("RESULTS_SERVICE_URL", "http://localhost:3000/api")
