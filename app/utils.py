@@ -57,7 +57,7 @@ def get_team_squad(team_id):
 
 def get_match_statistics(match_id):
     try:
-        response = requests.get(f"{EXPRESS_API_URL}/match/{match_id}/statistics")
+        response = requests.get(f"{RESULTS_URL.replace('/api','')}/match/{match_id}/statistics")
         response.raise_for_status()
         return response.json()
     except Exception as e:
