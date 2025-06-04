@@ -691,7 +691,7 @@ def get_most_common_pass_clusters():
         top_6 = df_passes["label"].value_counts().head(6).index
         top_6_clusters = df_passes[df_passes["label"].isin(top_6)]
 
-        df_limited = top_6_clusters.head(50)
+        df_limited = top_6_clusters.head(100)
         
         return jsonify(df_limited.to_dict(orient="records"))
     except Exception as e:
@@ -720,7 +720,7 @@ def get_most_common_pass_clusters_last_third():
         top_6 = df_passes["label"].value_counts().head(6).index
         top_6_clusters = df_passes[df_passes["label"].isin(top_6)]
 
-        df_limited = top_6_clusters.head(50)
+        df_limited = top_6_clusters.head(100)
         
         return jsonify(df_limited.to_dict(orient="records"))
     except Exception as e:
@@ -774,7 +774,7 @@ def filter_pass_clusters():
         top_6_clusters = df_passes[df_passes["label"].isin(top_6)]
 
         # Optional: limit result size
-        df_limited = top_6_clusters.head(50)
+        df_limited = top_6_clusters.head(100)
 
         return jsonify(df_limited.to_dict(orient="records"))
     
