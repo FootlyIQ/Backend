@@ -42,3 +42,5 @@ MICROSERVICE_URL = os.getenv("BETTING_SERVICE_URL", "http://localhost:3001")
 
 #RESULTS
 RESULTS_URL = os.getenv("RESULTS_SERVICE_URL", "http://localhost:3000/api")
+
+FPL_PROXY_URL = os.getenv("FPL_PROXY_URL", "http://86.58.6.122:5050/api/fpl")
