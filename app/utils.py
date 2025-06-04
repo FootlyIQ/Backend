@@ -1,6 +1,6 @@
 import requests
 import time
-from .config import RESULTS_URL
+from .config import RESULTS_URL, FPL_PROXY_URL
 
 player_history_cache = {}
 CACHE_TTL = 60 * 180  # 3 hours
@@ -129,7 +129,7 @@ def get_player_history(player_id):
         ts, history = player_history_cache[player_id]
         if now - ts < CACHE_TTL:
             return history
-    url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
+    url = f"{FPL_PROXY_URL}/element-summary/{player_id}/"
     res = requests.get(url)
     if res.status_code == 200:
         history = res.json().get("history", [])
@@ -138,7 +138,7 @@ def get_player_history(player_id):
     return []
 
 def get_upcoming_fixtures():
-    fixtures_url = "https://fantasy.premierleague.com/api/fixtures/"
+    fixtures_url = f"{FPL_PROXY_URL}/fixtures/"
     res = requests.get(fixtures_url)
     if res.status_code == 200:
         return res.json()

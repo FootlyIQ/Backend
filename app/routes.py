@@ -2,7 +2,7 @@ from flask import Blueprint, Response, jsonify, request
 from .utils import get_team_matches, get_team_squad,get_match_statistics, get_matches_from_api, get_player_details, get_player_matches, get_team_filters, get_competition_details, get_player_history, get_upcoming_fixtures,get_next_fixture, predict_points, search_players_from_microservice, search_teams_from_microservice
 import json
 import requests
-from .config import db, s3, con, MICROSERVICE_URL
+from .config import db, s3, con, MICROSERVICE_URL, FPL_PROXY_URL
 import pandas as pd
 import numpy as np
 import io
@@ -113,9 +113,9 @@ def get_fpl_team(team_id):
             return jsonify({"error": "Missing gameweek parameter"}), 400
 
         # API-ji
-        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{gw}/picks/"
-        elements_url = "https://fantasy.premierleague.com/api/bootstrap-static/"
-        live_url = f"https://fantasy.premierleague.com/api/event/{gw}/live/"
+        picks_url = f"{FPL_PROXY_URL}/entry/{team_id}/event/{gw}/picks/"
+        elements_url = f"{FPL_PROXY_URL}/bootstrap-static/"
+        live_url = f"{FPL_PROXY_URL}/event/{gw}/live/"
 
         # Fetch podatkov
         picks_res = requests.get(picks_url)
@@ -178,7 +178,7 @@ def get_fpl_team(team_id):
 @main.route("/api/fpl/current-gameweek", methods=["GET"])
 def get_current_gameweek():
     try:
-        res = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/")
+        res = requests.get(f"{FPL_PROXY_URL}/bootstrap-static/")
         res.raise_for_status()
         events = res.json()["events"]
         current = next((e for e in events if e["is_current"]), None)
@@ -200,8 +200,8 @@ def get_fpl_player_details(player_id):
     is_captain = request.args.get("is_captain", "false").lower() == "true"
 
     # Fetch player history and static info
-    player_url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
-    elements_url = "https://fantasy.premierleague.com/api/bootstrap-static/"
+    player_url = f"{FPL_PROXY_URL}/element-summary/{player_id}/"
+    elements_url = f"{FPL_PROXY_URL}/bootstrap-static/"
     try:
         response = requests.get(player_url)
         response.raise_for_status()
@@ -353,13 +353,13 @@ def get_fixture_difficulty():
         gw = request.args.get("gameweek", type=int)
         count = request.args.get("count", type=int) or 5
         if not gw:
-            res = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/")
+            res = requests.get(f"{FPL_PROXY_URL}/bootstrap-static/")
             events = res.json()["events"]
             current = next((e for e in events if e["is_current"]), None)
             gw = current["id"] if current else 38
 
-        fixtures = requests.get("https://fantasy.premierleague.com/api/fixtures/").json()
-        teams = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/").json()["teams"]
+        fixtures = requests.get(f"{FPL_PROXY_URL}/fixtures/").json()
+        teams = requests.get(f"{FPL_PROXY_URL}/bootstrap-static/").json()["teams"]
 
         team_fdr = {team["id"]: 0 for team in teams}
         team_names = {team["id"]: team["name"] for team in teams}
@@ -394,7 +394,7 @@ def get_fixture_difficulty():
 def get_fpl_captaincy(team_id):
     try:
         # Fetch static data
-        bootstrap = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/").json()
+        bootstrap = requests.get(f"{FPL_PROXY_URL}/bootstrap-static/").json()
         elements = bootstrap["elements"]
         teams = {team["id"]: team for team in bootstrap["teams"]}
         events = bootstrap["events"]
@@ -406,11 +406,11 @@ def get_fpl_captaincy(team_id):
             current_event = next((e for e in events if e["is_current"]), None)
             selected_gw = (current_event["id"] + 1) if current_event else 38
 
-        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
+        picks_url = f"{FPL_PROXY_URL}/entry/{team_id}/event/{selected_gw}/picks/"
         picks_res = requests.get(picks_url)
         if picks_res.status_code != 200:
             current = next((e for e in events if e["is_current"]), None)
-            picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{current['id']}/picks/"
+            picks_url = f"{FPL_PROXY_URL}/entry/{team_id}/event/{current['id']}/picks/"
             picks_res = requests.get(picks_url)
             if picks_res.status_code != 200:
                 return jsonify({"error": "Team not found"}), 404
@@ -473,7 +473,7 @@ def get_fpl_captaincy(team_id):
 @main.route("/api/fpl/transfers/<int:team_id>", methods=["GET"])
 def get_fpl_transfers(team_id):
     try:
-        bootstrap = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/").json()
+        bootstrap = requests.get(f"{FPL_PROXY_URL}/bootstrap-static/").json()
         elements = bootstrap["elements"]
         teams = {team["id"]: team for team in bootstrap["teams"]}
         events = bootstrap["events"]
@@ -485,11 +485,11 @@ def get_fpl_transfers(team_id):
             current_event = next((e for e in events if e["is_current"]), None)
             selected_gw = (current_event["id"] + 1) if current_event else 38
 
-        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
+        picks_url = f"{FPL_PROXY_URL}/entry/{team_id}/event/{selected_gw}/picks/"
         picks_res = requests.get(picks_url)
         if picks_res.status_code != 200:
             current = next((e for e in events if e["is_current"]), None)
-            picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{current['id']}/picks/"
+            picks_url = f"{FPL_PROXY_URL}/entry/{team_id}/event/{current['id']}/picks/"
             picks_res = requests.get(picks_url)
             if picks_res.status_code != 200:
                 return jsonify({"error": "Team not found"}), 404
@@ -501,13 +501,13 @@ def get_fpl_transfers(team_id):
         fixtures = get_upcoming_fixtures()
         
         # Determine the budget using the picks endpoint for the selected gameweek
-        picks_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/event/{selected_gw}/picks/"
+        picks_url = f"{FPL_PROXY_URL}/entry/{team_id}/event/{selected_gw}/picks/"
         picks_res = requests.get(picks_url)
         if picks_res.status_code == 200:
             picks_data = picks_res.json()
             budget = picks_data.get("entry_history", {}).get("bank", 0) / 10
         else:
-            entry_history_url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
+            entry_history_url = f"{FPL_PROXY_URL}/entry/{team_id}/history/"
             entry_history_res = requests.get(entry_history_url)
             if entry_history_res.status_code == 200:
                 history_data = entry_history_res.json()
@@ -600,7 +600,7 @@ def get_fpl_transfers(team_id):
 
 @main.route("/api/fpl/entry-history/<int:team_id>")
 def get_entry_history(team_id):
-    url = f"https://fantasy.premierleague.com/api/entry/{team_id}/history/"
+    url = f"{FPL_PROXY_URL}/entry/{team_id}/history/"
     res = requests.get(url)
     return jsonify(res.json()), res.status_code
 
