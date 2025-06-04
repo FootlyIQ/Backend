@@ -6,7 +6,7 @@ from .config import db
 def create_app():
     app = Flask(__name__)
 
-    CORS(app, origins=["https://frontend-i3fb.onrender.com"])   #spremeni
+    CORS(app, origins=["https://frontend-i3fb.onrender.com", "http://localhost:5173"])   #spremeni
     from .routes import main
     app.register_blueprint(main)
 
