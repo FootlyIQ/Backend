@@ -537,6 +537,8 @@ def get_fpl_transfers(team_id):
                 and p["element_type"] == out_position
                 and p["now_cost"] / 10 <= max_price
             ]
+            # Limit to top 20 by form
+            candidates = sorted(candidates, key=lambda x: float(x.get("form", 0)), reverse=True)[:20]
             scored_candidates = []
             for candidate in candidates:
                 history = get_player_history(candidate["id"])
